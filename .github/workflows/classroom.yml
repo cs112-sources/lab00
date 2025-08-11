@@ -1,0 +1,57 @@
+name: Autograding Tests
+'on':
+- push
+- workflow_dispatch
+- repository_dispatch
+permissions:
+  checks: write
+  actions: read
+  contents: read
+jobs:
+  run-autograding-tests:
+    runs-on: runs-on: runners-${{ github.repository_owner }}
+    container:
+      image: calvincsinfrastructure/devcontainer-cs112-autograde:latest
+
+    if: github.actor != 'github-classroom[bot]'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    - name: compile via make
+      id: compile-make
+      uses: classroom-resources/autograding-command-grader@v1
+      with:
+        test-name: compile
+        setup-command: make
+        command: test -f lab0
+        timeout: 4
+        max-score: 0
+    - name: final test 1
+      id: final-test-1
+      uses: classroom-resources/autograding-io-grader@v1
+      with:
+        test-name: final test 1
+        command: "./lab0"
+        input: Amunzle
+        expected-output: Welcome to CS112 and C++, Amunzle!
+        comparison-method: contains
+        timeout: 10
+        max-score: 3
+    - name: final test 2
+      id: final-test-2
+      uses: classroom-resources/autograding-io-grader@v1
+      with:
+        test-name: final test 2
+        command: "./lab0"
+        input: Linz
+        expected-output: Welcome to CS112 and C++, Linz!
+        comparison-method: contains
+        timeout: 10
+        max-score: 2
+    - name: Autograding Reporter
+      uses: classroom-resources/autograding-grading-reporter@v1
+      env:
+        FINAL-TEST-1_RESULTS: "${{steps.final-test-1.outputs.result}}"
+        FINAL-TEST-2_RESULTS: "${{steps.final-test-2.outputs.result}}"
+      with:
+        runners: final-test-1,final-test-2
