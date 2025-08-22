@@ -111,6 +111,18 @@ jobs:
               *)    status="⚠️ Unknown" ;;
             esac
 
+            # For compile test, show a student-friendly message
+            if [ "$name" = "compile" ]; then
+              if [ "$raw" = "pass" ]; then
+                message="Compiled successfully."
+              else
+                # If message is empty, show a generic error
+                if [ -z "$message" ]; then
+                  message="Compilation failed."
+                fi
+              fi
+            fi
+
             # keep the table intact
             message="${message//|/\\|}"
 
