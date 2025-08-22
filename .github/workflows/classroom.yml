@@ -138,10 +138,10 @@ jobs:
             echo "|---|---:|---:|---|"
           } >> "$SUMMARY"
 
-          # Prepare ASCII table header for logs
+          # Prepare ASCII table header for logs (use printf for perfect alignment)
           ascii_table=""
           ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
-          ascii_table+="| Test           | Status   | Points | Message                                  |\n"
+          ascii_table+="| %-14s | %-8s | %-6s | %-40s |\n" "Test" "Status" "Points" "Message"
           ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
 
           tot_score=0
@@ -157,7 +157,8 @@ jobs:
               echo "| ${name} | ${status} | ${score}/${max} | ${message} |" >> "$SUMMARY"
               # ASCII for logs (truncate message for log width)
               short_msg="${message:0:40}"
-              ascii_table+="| $(printf '%-14s' "$name") | $(printf '%-8s' "$status") | $(printf '%2s/%-3s' "$score" "$max") | $(printf '%-40s' "$short_msg") |\n"
+              points_col="${score}/${max}"
+              ascii_table+="$(printf '| %-14s | %-8s | %-6s | %-40s |\n' "$name" "$status" "$points_col" "$short_msg")"
               tot_score=$((tot_score + ${score:-0}))
               tot_max=$((tot_max + ${max:-0}))
               [ "${raw:-unknown}" = "fail" ] && any_fail=1
