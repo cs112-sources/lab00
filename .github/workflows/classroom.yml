@@ -138,11 +138,12 @@ jobs:
             echo "|---|---:|---:|---|"
           } >> "$SUMMARY"
 
-          # Prepare ASCII table header for logs (use printf for data rows only)
-          ascii_table=""
-          ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
-          ascii_table+="| Test           | Status   | Points | Message                                  |\n"
-          ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
+          # Print ASCII table header for logs
+          ascii_border='+----------------+----------+--------+------------------------------------------+'
+          printf "\n===================== AUTOGRADING RESULTS =====================\n"
+          printf "$ascii_border\n"
+          printf "| %-14s | %-8s | %-6s | %-40s |\n" "Test" "Status" "Points" "Message"
+          printf "$ascii_border\n"
 
           tot_score=0
           tot_max=0
@@ -158,16 +159,16 @@ jobs:
               # ASCII for logs (truncate message for log width)
               short_msg="${message:0:40}"
               points_col="${score}/${max}"
-              ascii_table+="$(printf '| %-14s | %-8s | %-6s | %-40s |\n' "$name" "$status" "$points_col" "$short_msg")"
+              printf "| %-14s | %-8s | %-6s | %-40s |\n" "$name" "$status" "$points_col" "$short_msg"
               tot_score=$((tot_score + ${score:-0}))
               tot_max=$((tot_max + ${max:-0}))
               [ "${raw:-unknown}" = "fail" ] && any_fail=1
             done < "$RESULTS_FILE"
-            ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
+            printf "$ascii_border\n"
           else
             echo "_No results recorded (RESULTS_FILE not found)_" >> "$SUMMARY"
-            ascii_table+="| No results recorded (RESULTS_FILE not found)                                      |\n"
-            ascii_table+="+---------------------------------------------------------------------------------+\n"
+            printf "| %-76s |\n" "No results recorded (RESULTS_FILE not found)"
+            printf "+---------------------------------------------------------------------------------+\n"
           fi
 
           {
@@ -179,10 +180,8 @@ jobs:
             fi
           } >> "$SUMMARY"
 
-          # Print ASCII table to logs (auto-visible), and markdown to Job Summary
+          # Print markdown summary to Job Summary
           echo
-          echo "===================== AUTOGRADING RESULTS ====================="
-          echo -e "$ascii_table"
           echo "==============================================================="
           echo
           cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
