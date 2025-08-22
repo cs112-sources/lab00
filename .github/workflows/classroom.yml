@@ -1,57 +1,166 @@
 name: Autograding Tests
-'on':
-- push
-- workflow_dispatch
-- repository_dispatch
+on:
+  - push
+  - workflow_dispatch
+  - repository_dispatch
+
 permissions:
   checks: write
   actions: read
   contents: read
+
 jobs:
   run-autograding-tests:
     runs-on: ubuntu-latest
-
-    if: github.actor != 'github-classroom[bot]'
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-    - name: Install build tools
-      run: sudo apt-get update && sudo apt-get install -y build-essential
-    - name: compile via make
-      id: compile-make
-      uses: classroom-resources/autograding-command-grader@v1
-      with:
-        test-name: compile
-        setup-command: make
-        command: test -f lab0
-        timeout: 4
-        max-score: 0
-    - name: final test 1
-      id: final-test-1
-      uses: classroom-resources/autograding-io-grader@v1
-      with:
-        test-name: final test 1
-        command: "./lab0"
-        input: Amunzle
-        expected-output: Welcome to CS112 and C++, Amunzle!
-        comparison-method: contains
-        timeout: 10
-        max-score: 3
-    - name: final test 2
-      id: final-test-2
-      uses: classroom-resources/autograding-io-grader@v1
-      with:
-        test-name: final test 2
-        command: "./lab0"
-        input: Linz
-        expected-output: Welcome to CS112 and C++, Linz!
-        comparison-method: contains
-        timeout: 10
-        max-score: 2
-    - name: Autograding Reporter
-      uses: classroom-resources/autograding-grading-reporter@v1
-      env:
-        FINAL-TEST-1_RESULTS: "${{steps.final-test-1.outputs.result}}"
-        FINAL-TEST-2_RESULTS: "${{steps.final-test-2.outputs.result}}"
-      with:
-        runners: final-test-1,final-test-2
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Prepare results file path
+        if: always()
+        run: |
+          echo "RESULTS_FILE=$RUNNER_TEMP/autograde-results.b64" >> "$GITHUB_ENV"
+          : > "$RUNNER_TEMP/autograde-results.b64"
+
+      # --- Example: compile/test the build (command-grader) ---
+      - name: compile via make
+        id: compile-make
+        uses: classroom-resources/autograding-command-grader@v1
+        with:
+          test-name: compile
+          setup-command: make
+          command: test -f lab0
+          timeout: 30
+          max-score: 0
+      - name: Record result (compile)
+        if: always()
+        run: |
+          [ -n "${{ steps.compile-make.outputs.result }}" ] && \
+          echo "${{ steps.compile-make.outputs.result }}" >> "$RESULTS_FILE" || true
+
+      # --- Example: IO test 1 ---
+      - name: final test 1
+        id: final-test-1
+        uses: classroom-resources/autograding-io-grader@v1
+        with:
+          test-name: final test 1
+          command: "./lab0"
+          input: Amunzle
+          expected-output: Welcome to CS112 and C++, Amunzle!
+          comparison-method: contains
+          timeout: 10
+          max-score: 3
+      - name: Record result (final test 1)
+        if: always()
+        run: |
+          [ -n "${{ steps.final-test-1.outputs.result }}" ] && \
+          echo "${{ steps.final-test-1.outputs.result }}" >> "$RESULTS_FILE" || true
+
+      # --- Example: IO test 2 ---
+      - name: final test 2
+        id: final-test-2
+        uses: classroom-resources/autograding-io-grader@v1
+        with:
+          test-name: final test 2
+          command: "./lab0"
+          input: Linz
+          expected-output: Welcome to CS112 and C++, Linz!
+          comparison-method: contains
+          timeout: 10
+          max-score: 2
+      - name: Record result (final test 2)
+        if: always()
+        run: |
+          [ -n "${{ steps.final-test-2.outputs.result }}" ] && \
+          echo "${{ steps.final-test-2.outputs.result }}" >> "$RESULTS_FILE" || true
+
+      # Final step: print a visible summary AND decide pass/fail
+      - name: ❌ Summarize autograding results & decide pass/fail
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          SUMMARY="$RUNNER_TEMP/autograde-summary.md"
+          : > "$SUMMARY"
+
+          decode() { echo "$1" | base64 -d; }
+          one_line() { tr -d '\n' | tr -d '\r'; }
+
+          # parse_blob <base64> -> "name|prettyStatus|score|max|message|rawStatus"
+          parse_blob() {
+            local blob="$1"
+            local json onel test status raw score max message name
+            json="$(decode "$blob" 2>/dev/null || true)"
+            onel="$(echo "$json" | one_line)"
+            # Actions emit a single test per blob
+            test="$(echo "$onel" | sed -E 's/.*"tests":[[]\{([^]]*)\}[]].*/{\1}/')"
+
+            name="$(   echo "$test" | sed -E 's/.*"name":"([^"]*)".*/\1/')" || true
+            raw="$(    echo "$test" | sed -E 's/.*"status":"([^"]*)".*/\1/')" || true
+            score="$(  echo "$test" | sed -E 's/.*"score":([0-9]+).*/\1/')"  || true
+            max="$(    echo "$onel" | sed -E 's/.*"max_score":([0-9]+).*/\1/')" || true
+            message="$(echo "$test" | sed -E 's/.*"message":"([^"]*)".*/\1/')" || true
+
+            case "$raw" in
+              pass) status="✅ Pass" ;;
+              fail) status="❌ Fail" ;;
+              *)    status="⚠️ Unknown" ;;
+            esac
+
+            # keep the table intact
+            message="${message//|/\\|}"
+
+            echo "${name:-(unnamed)}|${status}|${score:-0}|${max:-0}|${message}|${raw:-unknown}"
+          }
+
+          {
+            echo "## Autograding results"
+            echo
+            echo "| Test | Status | Points | Message |"
+            echo "|---|---:|---:|---|"
+          } >> "$SUMMARY"
+
+          tot_score=0
+          tot_max=0
+          any_fail=0
+
+          if [ -f "$RESULTS_FILE" ]; then
+            while IFS= read -r line || [ -n "$line" ]; do
+              [ -z "$line" ] && continue
+              parsed="$(parse_blob "$line")"
+              IFS='|' read -r name status score max message raw <<<"$parsed"
+              echo "| ${name} | ${status} | ${score}/${max} | ${message} |" >> "$SUMMARY"
+              tot_score=$((tot_score + ${score:-0}))
+              tot_max=$((tot_max + ${max:-0}))
+              [ "${raw:-unknown}" = "fail" ] && any_fail=1
+            done < "$RESULTS_FILE"
+          else
+            echo "_No results recorded (RESULTS_FILE not found)_" >> "$SUMMARY"
+          fi
+
+          {
+            echo
+            if [ "$tot_score" -eq "$tot_max" ] && [ "$tot_max" -gt 0 ]; then
+              echo "🎉 **Score:** ${tot_score}/${tot_max}"
+            else
+              echo "📊 **Score:** ${tot_score}/${tot_max}"
+            fi
+          } >> "$SUMMARY"
+
+          # Print summary directly to logs (auto-visible), and to Job Summary
+          echo
+          echo "===================== AUTOGRADING RESULTS ====================="
+          cat "$SUMMARY"
+          echo "==============================================================="
+          echo
+          cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+
+          # Fail here (single, clean failure)
+          if [ "$any_fail" -ne 0 ]; then
+            echo "::error::Autograding failed: one or more tests did not match the expected output. The full summary is shown above."
+            exit 1
+          fi
