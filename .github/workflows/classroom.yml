@@ -129,12 +129,20 @@ jobs:
             echo "${name:-(unnamed)}|${status}|${score:-0}|${max:-0}|${message}|${raw:-unknown}"
           }
 
+
+          # Prepare markdown table for summary and ASCII table for logs
           {
             echo "## Autograding results"
             echo
             echo "| Test | Status | Points | Message |"
             echo "|---|---:|---:|---|"
           } >> "$SUMMARY"
+
+          # Prepare ASCII table header for logs
+          ascii_table=""
+          ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
+          ascii_table+="| Test           | Status   | Points | Message                                  |\n"
+          ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
 
           tot_score=0
           tot_max=0
@@ -145,13 +153,20 @@ jobs:
               [ -z "$line" ] && continue
               parsed="$(parse_blob "$line")"
               IFS='|' read -r name status score max message raw <<<"$parsed"
+              # Markdown for summary
               echo "| ${name} | ${status} | ${score}/${max} | ${message} |" >> "$SUMMARY"
+              # ASCII for logs (truncate message for log width)
+              short_msg="${message:0:40}"
+              ascii_table+="| $(printf '%-14s' "$name") | $(printf '%-8s' "$status") | $(printf '%2s/%-3s' "$score" "$max") | $(printf '%-40s' "$short_msg") |\n"
               tot_score=$((tot_score + ${score:-0}))
               tot_max=$((tot_max + ${max:-0}))
               [ "${raw:-unknown}" = "fail" ] && any_fail=1
             done < "$RESULTS_FILE"
+            ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
           else
             echo "_No results recorded (RESULTS_FILE not found)_" >> "$SUMMARY"
+            ascii_table+="| No results recorded (RESULTS_FILE not found)                                      |\n"
+            ascii_table+="+---------------------------------------------------------------------------------+\n"
           fi
 
           {
@@ -163,10 +178,10 @@ jobs:
             fi
           } >> "$SUMMARY"
 
-          # Print summary directly to logs (auto-visible), and to Job Summary
+          # Print ASCII table to logs (auto-visible), and markdown to Job Summary
           echo
           echo "===================== AUTOGRADING RESULTS ====================="
-          cat "$SUMMARY"
+          echo -e "$ascii_table"
           echo "==============================================================="
           echo
           cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
