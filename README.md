@@ -1,4 +1,4 @@
-# CS112 Lab 0: Getting Started
+# CS112 Lab 00: Getting Started
 
 The instructions for this assignment can be accessed by [clicking on this link](https://ericaraujo.com/25sp-cs112/labs/lab00.html).
 

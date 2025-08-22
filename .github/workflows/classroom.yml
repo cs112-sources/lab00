@@ -9,7 +9,7 @@ permissions:
   contents: read
 jobs:
   run-autograding-tests:
-    runs-on: runs-on: runners-${{ github.repository_owner }}
+    runs-on: runners-${{ github.repository_owner }}
     container:
       image: calvincsinfrastructure/devcontainer-cs112-autograde:latest
 
