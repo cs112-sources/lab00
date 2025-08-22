@@ -138,10 +138,10 @@ jobs:
             echo "|---|---:|---:|---|"
           } >> "$SUMMARY"
 
-          # Prepare ASCII table header for logs (use printf for perfect alignment)
+          # Prepare ASCII table header for logs (use printf for data rows only)
           ascii_table=""
           ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
-          ascii_table+="| %-14s | %-8s | %-6s | %-40s |\n" "Test" "Status" "Points" "Message"
+          ascii_table+="| Test           | Status   | Points | Message                                  |\n"
           ascii_table+="+----------------+----------+--------+------------------------------------------+\n"
 
           tot_score=0
