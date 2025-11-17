@@ -78,7 +78,7 @@ jobs:
           echo "${{ steps.final-test-2.outputs.result }}" >> "$RESULTS_FILE" || true
 
       # Final step: print a visible summary AND decide pass/fail
-      - name: ❌ Summarize autograding results & decide pass/fail
+      - name: Summarize autograding results & decide pass/fail
         if: always()
         shell: bash
         run: |
